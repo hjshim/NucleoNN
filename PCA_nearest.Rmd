@@ -1,0 +1,116 @@
+---
+title: "Tensorboard PCA Nearest Points"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+# manual edit by deleting beginning before { and ending after } (, should be kept)
+# import raw DNA sequence data
+file_name = "echovirus_Cl_1per_NE_embedding.txt"
+dat <- read.table(file_name,sep="{",header=FALSE,check.names=FALSE)
+dat <- dat[,-1]
+
+dat_1 <- c(length(dat))
+dat_numeric <- matrix(nrow=length(dat),ncol=10)
+
+for(n in 1:length(dat)){
+  dat_1[n] <- strsplit(as.character(dat[,n]),split=",")
+  dat_1[[n]][10] <- gsub('*.}','',dat_1[[n]][10])
+  dat_numeric[n,] <- as.numeric(gsub('^.*:','',dat_1[[n]]))
+}
+
+corr_matrix <- matrix(nrow=length(dat),ncol=length(dat))
+
+for(r in 1:length(dat)){
+  for(c in 1:length(dat)){
+    corr_matrix[r,c] <- (dat_numeric[r,1]*dat_numeric[c,1] + dat_numeric[r,2]*dat_numeric[c,2] + dat_numeric[r,3]*dat_numeric[c,3]) / ( sqrt(dat_numeric[r,1]^2 + dat_numeric[r,2]^2 + dat_numeric[r,3]^2) * sqrt(dat_numeric[c,1]^2 + dat_numeric[c,2]^2 + dat_numeric[c,3]^2) )
+  }
+}
+
+# Index
+colnames(corr_matrix) <- c(0:(length(dat)-1))
+rownames(corr_matrix) <- c(0:(length(dat)-1))
+
+######
+library("corrplot")
+
+pdf(paste(file_name,"_corr_matrix.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,tl.pos="d")
+dev.off()
+
+pdf(paste(file_name,"_corr_matrix_hcluster.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,order="hclust",tl.pos="d")
+dev.off()
+
+pdf(paste(file_name,"_corr_matrix_lower.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,tl.pos="d",type="lower")
+dev.off()
+
+pdf(paste(file_name,"_corr_matrix_hcluster_lower.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,order="hclust",tl.pos="d",type="lower")
+dev.off()
+
+pdf(paste(file_name,"_corr_matrix_color.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,tl.pos="d",type="lower",method="color")
+dev.off()
+
+pdf(paste(file_name,"_corr_matrix_hcluster_color.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,order="hclust",tl.pos="d",type="lower",method="color")
+dev.off()
+
+###
+
+file_name2 = "echovirus_Cl_1per_NE_alleleset.txt"
+dat2 <- read.table(file_name2,sep="\t",header=TRUE)
+
+# Position
+allele_diff_R1_R2 <- dat2$Position # Position index
+colnames(corr_matrix) <- c(allele_diff_R1_R2)
+rownames(corr_matrix) <- c(allele_diff_R1_R2)
+
+pdf(paste(file_name2,"_corr_matrix_hcluster_addrect7.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,order="hclust",tl.pos="d",addrect=7)
+dev.off()
+
+pdf(paste(file_name2,"_corr_matrix.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,tl.pos="d")
+dev.off()
+
+pdf(paste(file_name2,"_corr_matrix_hcluster.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,order="hclust",tl.pos="d")
+dev.off()
+
+pdf(paste(file_name2,"_corr_matrix_lower.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,tl.pos="d",type="lower")
+dev.off()
+
+pdf(paste(file_name2,"_corr_matrix_hcluster_lower.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,order="hclust",tl.pos="d",type="lower")
+dev.off()
+
+pdf(paste(file_name2,"_corr_matrix_color.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,tl.pos="d",type="lower",method="color")
+dev.off()
+
+pdf(paste(file_name2,"_corr_matrix_hcluster_color.pdf",sep=""),20,20)
+corrplot(corr_matrix,is.corr=FALSE,order="hclust",tl.pos="d",type="lower",method="color")
+dev.off()
+
+# for(r in 1:length(dat)){
+#   for(c in 1:length(dat)){
+#     corr_matrix[r,c] <- (dat_numeric[r,1]*dat_numeric[c,1] + dat_numeric[r,2]*dat_numeric[c,2] + dat_numeric[r,3]*dat_numeric[c,3] + dat_numeric[r,3]*dat_numeric[c,3] + dat_numeric[r,4]*dat_numeric[c,4] + dat_numeric[r,5]*dat_numeric[c,5] + dat_numeric[r,6]*dat_numeric[c,6] + dat_numeric[r,7]*dat_numeric[c,7] + dat_numeric[r,8]*dat_numeric[c,8] + dat_numeric[r,9]*dat_numeric[c,9] + dat_numeric[r,10]*dat_numeric[c,10]) / ( sqrt(dat_numeric[r,1]^2 + dat_numeric[r,2]^2 + dat_numeric[r,3]^2 + dat_numeric[r,4]^2 + dat_numeric[r,5]^2 + dat_numeric[r,6]^2 + dat_numeric[r,7]^2 + dat_numeric[r,8]^2 + dat_numeric[r,9]^2 + dat_numeric[r,10]^2) * sqrt(dat_numeric[c,1]^2 + dat_numeric[c,2]^2 + dat_numeric[c,3]^2 + dat_numeric[c,4]^2 + dat_numeric[c,5]^2 + dat_numeric[c,6]^2 + dat_numeric[c,7]^2 + dat_numeric[c,8]^2 + dat_numeric[c,9]^2 + dat_numeric[c,10]^2) )
+#   }
+# }
+
+# examples
+# mtcars
+# cor(mtcars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
