@@ -1,0 +1,338 @@
+---
+title: "Generate data for skip-gram"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+## Step 1: import raw DNA sequence data
+```{r}
+# import raw DNA sequence data
+file_name = "NEB"
+dat <- read.csv(paste(file_name,".csv",sep=""),header=TRUE)
+
+# check coverage
+for (i in 1:2){
+  coverage <- dat[,(i*6)]
+  print(below_cov <- which(coverage<100))
+}
+# time sampled
+t=3
+
+mode <- function(x) {
+  d <- density(x,adjust = 1)
+  d$x[which.max(d$y)]
+}
+# mean((dat$WT_Coverage+dat$NE10A_Coverage)/2)
+# mode((dat$WT_Coverage+dat$NE10A_Coverage)/2)
+
+mean(c(dat$WT_Coverage,dat$NE10A_Coverage))
+mode(c(dat$WT_Coverage,dat$NE10A_Coverage))
+
+pdf(paste(file_name,"_coverage_density.pdf",sep=""),10,8)
+plot(density(c(dat$WT_Coverage,dat$NE10A_Coverage)),lwd=2,xlab="Mapped read depth",ylab="Number of bases",main="",cex.lab=1.4,cex.axis=1.2)
+dev.off()
+#hist(dat$WT_Coverage)
+
+pdf(paste(file_name,"_coverage_genome.pdf",sep=""),10,8)
+plot(dat$Position, dat$NE10B_Coverage, xlab="Genome position ", ylab="Read depth ", pch=1, type="h", log="y", ylim = c(1,10^6),main="",cex.lab=1.4,cex.axis=1.2)
+dev.off()
+```
+
+## Step 2: find minor alleles (max at last sampling if switching from second max to max during experiment, or second max at last sampling point) whose allele frequency change from first to last sampling is above zero (repeat for all 4 replicates)
+```{r}
+################
+# R1
+################
+# check major allele at time 0 (major)
+max_first <- pmax(dat$WT_A,dat$WT_C,dat$WT_G,dat$WT_T,na.rm=TRUE)
+major_A <- which(dat$WT_A == max_first)
+major_C <- which(dat$WT_C == max_first)
+major_G <- which(dat$WT_G == max_first)
+major_T <- which(dat$WT_T == max_first)
+# check major allele at time 20 (minor)
+max_last <- pmax(dat$NE10A_A,dat$NE10A_C,dat$NE10A_G,dat$NE10A_T,na.rm=TRUE)
+minor_A <- which(dat$NE10A_A == max_last)
+minor_C <- which(dat$NE10A_C == max_last)
+minor_G <- which(dat$NE10A_G == max_last)
+minor_T <- which(dat$NE10A_T == max_last)
+
+# check length
+length(dat[,1])
+length(major_A)+length(major_C)+length(major_G)+length(major_T)
+length(minor_A)+length(minor_C)+length(minor_G)+length(minor_T)
+
+# create data with only major and minor alleles
+new_dat <- data.frame()
+colnames(dat)[t*6-1] # last nucleotide at last sampling time point
+seq=c(1,t)
+# Major
+Ma_A <- as.matrix(cbind(rep("A",length(major_A)),dat[major_A,seq*6-4]))
+Ma_C <- as.matrix(cbind(rep("C",length(major_C)),dat[major_C,seq*6-3]))
+Ma_G <- as.matrix(cbind(rep("G",length(major_G)),dat[major_G,seq*6-2]))
+Ma_T <- as.matrix(cbind(rep("T",length(major_T)),dat[major_T,seq*6-1]))
+colnames(Ma_A) <- NULL
+colnames(Ma_C) <- NULL
+colnames(Ma_G) <- NULL
+colnames(Ma_T) <- NULL
+new_dat <- rbind(Ma_A,Ma_C,Ma_G,Ma_T)
+new_dat_Ma <- new_dat[order(as.numeric(rownames(new_dat))),]
+# Minor
+Mi_A <- as.matrix(cbind(rep("A",length(minor_A)),dat[minor_A,seq*6-4]))
+Mi_C <- as.matrix(cbind(rep("C",length(minor_C)),dat[minor_C,seq*6-3]))
+Mi_G <- as.matrix(cbind(rep("G",length(minor_G)),dat[minor_G,seq*6-2]))
+Mi_T <- as.matrix(cbind(rep("T",length(minor_T)),dat[minor_T,seq*6-1]))
+colnames(Mi_A) <- NULL
+colnames(Mi_C) <- NULL
+colnames(Mi_G) <- NULL
+colnames(Mi_T) <- NULL
+new_dat <- rbind(Mi_A,Mi_C,Mi_G,Mi_T)
+new_dat_Mi <- new_dat[order(as.numeric(rownames(new_dat))),]
+
+# candidate trajectories -> minor allele becomes major
+final_dat <- cbind(dat$Position,new_dat_Ma,new_dat_Mi)
+
+##############
+# R1: minor alleles
+##############
+## no rounding (sample size = 100 -> sequencing error 0.01%)
+final_dat_wfabc <- matrix(nrow=length(dat[,1]),ncol=t)
+# second max at last sampling if major =! minor
+for(i in 1:length(dat[,1])){
+  if(final_dat[i,2]!=final_dat[i,5]){
+    max_last_order <- order(c(dat[i,]$NE10A_A,dat[i,]$NE10A_C,dat[i,]$NE10A_G,dat[i,]$NE10A_T),decreasing=TRUE)[1] #  max at last sampling
+    if(max_last_order==1){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-4]))
+    } else if(max_last_order==2){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-3]))
+    } else if(max_last_order==3){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-2]))
+    } else if(max_last_order==4){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-1]))
+    } 
+  } else {
+    max_last_order <- order(c(dat[i,]$NE10A_A,dat[i,]$NE10A_C,dat[i,]$NE10A_G,dat[i,]$NE10A_T),decreasing=TRUE)[2] # second max at last sampling
+    if(max_last_order==1){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-4]))
+    } else if(max_last_order==2){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-3]))
+    } else if(max_last_order==3){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-2]))
+    } else if(max_last_order==4){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-1]))
+    } 
+  }
+}
+
+allele_diff_R1 <- (final_dat_wfabc[,3]-final_dat_wfabc[,2]) # allele f difference between (f(time20)-f(time0))
+allele_diff_R1[allele_diff_R1 < 0] <- 0 # replace decreasing allele frequencies with zero
+
+```
+
+## Step 1: import raw DNA sequence data
+```{r}
+# import raw DNA sequence data
+file_name = "NEB"
+dat <- read.csv(paste(file_name,".csv",sep=""),header=TRUE)
+
+# check coverage
+for (i in 1:2){
+  coverage <- dat[,(i*6)]
+  print(below_cov <- which(coverage<100))
+}
+# time sampled
+t=3
+
+mode <- function(x) {
+  d <- density(x,adjust = 1)
+  d$x[which.max(d$y)]
+}
+# mean((dat$WT_Coverage+dat$NE10B_Coverage)/2)
+# mode((dat$WT_Coverage+dat$NE10B_Coverage)/2)
+
+mean(c(dat$WT_Coverage,dat$NE10B_Coverage))
+mode(c(dat$WT_Coverage,dat$NE10B_Coverage))
+
+pdf(paste(file_name,"_coverage_density.pdf",sep=""),10,8)
+plot(density(c(dat$WT_Coverage,dat$NE10B_Coverage)),lwd=2,xlab="Mapped read depth",ylab="Number of bases",main="",cex.lab=1.4,cex.axis=1.2)
+dev.off()
+#hist(dat$WT_Coverage)
+```
+
+## Step 2: find minor alleles (max at last sampling if switching from second max to max during experiment, or second max at last sampling point) whose allele frequency change from first to last sampling is above zero (repeat for all 4 replicates)
+```{r}
+################
+# R2 (repeat for replicate)
+################
+# check major allele
+max_first <- pmax(dat$WT_A,dat$WT_C,dat$WT_G,dat$WT_T,na.rm=TRUE)
+major_A <- which(dat$WT_A == max_first)
+major_C <- which(dat$WT_C == max_first)
+major_G <- which(dat$WT_G == max_first)
+major_T <- which(dat$WT_T == max_first)
+# check minor allele
+max_last <- pmax(dat$NE10B_A,dat$NE10B_C,dat$NE10B_G,dat$NE10B_T,na.rm=TRUE)
+minor_A <- which(dat$NE10B_A == max_last)
+minor_C <- which(dat$NE10B_C == max_last)
+minor_G <- which(dat$NE10B_G == max_last)
+minor_T <- which(dat$NE10B_T == max_last)
+
+# check length
+length(dat[,1])
+length(major_A)+length(major_C)+length(major_G)+length(major_T)
+length(minor_A)+length(minor_C)+length(minor_G)+length(minor_T)
+
+# create data with only major and minor alleles
+new_dat <- data.frame()
+colnames(dat)[t*6-1] # 7*6-1
+seq=c(1,t)
+# Major
+Ma_A <- as.matrix(cbind(rep("A",length(major_A)),dat[major_A,seq*6-4]))
+Ma_C <- as.matrix(cbind(rep("C",length(major_C)),dat[major_C,seq*6-3]))
+Ma_G <- as.matrix(cbind(rep("G",length(major_G)),dat[major_G,seq*6-2]))
+Ma_T <- as.matrix(cbind(rep("T",length(major_T)),dat[major_T,seq*6-1]))
+colnames(Ma_A) <- NULL
+colnames(Ma_C) <- NULL
+colnames(Ma_G) <- NULL
+colnames(Ma_T) <- NULL
+new_dat <- rbind(Ma_A,Ma_C,Ma_G,Ma_T)
+new_dat_Ma <- new_dat[order(as.numeric(rownames(new_dat))),]
+# Minor
+Mi_A <- as.matrix(cbind(rep("A",length(minor_A)),dat[minor_A,seq*6-4]))
+Mi_C <- as.matrix(cbind(rep("C",length(minor_C)),dat[minor_C,seq*6-3]))
+Mi_G <- as.matrix(cbind(rep("G",length(minor_G)),dat[minor_G,seq*6-2]))
+Mi_T <- as.matrix(cbind(rep("T",length(minor_T)),dat[minor_T,seq*6-1]))
+colnames(Mi_A) <- NULL
+colnames(Mi_C) <- NULL
+colnames(Mi_G) <- NULL
+colnames(Mi_T) <- NULL
+new_dat <- rbind(Mi_A,Mi_C,Mi_G,Mi_T)
+new_dat_Mi <- new_dat[order(as.numeric(rownames(new_dat))),]
+
+# candidate trajectories -> minor allele becomes major
+final_dat <- cbind(dat$Position,new_dat_Ma,new_dat_Mi)
+
+##############
+# R2: minor alleles
+##############
+## no rounding (sample size = 100 -> sequencing error 0.01%)
+final_dat_wfabc <- matrix(nrow=length(dat[,1]),ncol=t)
+# second max at last sampling if major =! minor
+for(i in 1:length(dat[,1])){
+  if(final_dat[i,2]!=final_dat[i,5]){
+    max_last_order <- order(c(dat[i,]$NE10B_A,dat[i,]$NE10B_C,dat[i,]$NE10B_G,dat[i,]$NE10B_T),decreasing=TRUE)[1] #  max at last sampling
+    if(max_last_order==1){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-4]))
+    } else if(max_last_order==2){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-3]))
+    } else if(max_last_order==3){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-2]))
+    } else if(max_last_order==4){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-1]))
+    } 
+  } else {
+    max_last_order <- order(c(dat[i,]$NE10B_A,dat[i,]$NE10B_C,dat[i,]$NE10B_G,dat[i,]$NE10B_T),decreasing=TRUE)[2] # second max at last sampling
+    if(max_last_order==1){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-4]))
+    } else if(max_last_order==2){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-3]))
+    } else if(max_last_order==3){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-2]))
+    } else if(max_last_order==4){
+      final_dat_wfabc[i,] <- as.matrix(cbind(dat[i,]$Position,dat[i,seq*6-1]))
+    } 
+  }
+}
+
+allele_diff_R2 <- (final_dat_wfabc[,3]-final_dat_wfabc[,2])
+allele_diff_R2[allele_diff_R2 < 0] <- 0 # replace decreasing allele frequencies with zero
+
+```
+
+## Step 3: create (big) simulated datasets using binomial sampling from average of 4 replicates of allele f (positive) differences -> only changes over 0.5%, normalized into probability 0-1, use vector index instead of real index (to reduce embed size??)
+```{r}
+######### Create data with average of 4 replicate allele f differences
+
+#allele_diff <- (allele_diff_R1 + allele_diff_R2)/2
+allele_diff_R1_index_nonzero <- which(allele_diff_R1 > 1)
+allele_diff_R1_nonzero <- allele_diff_R1[allele_diff_R1_index_nonzero]
+allele_diff_R1_nonzero_matrix <- data.frame(allele_diff_R1_index_nonzero,allele_diff_R1_nonzero)
+
+allele_diff_R2_index_nonzero <- which(allele_diff_R2 > 1)
+allele_diff_R2_nonzero <- allele_diff_R2[allele_diff_R2_index_nonzero]
+allele_diff_R2_nonzero_matrix <- data.frame(allele_diff_R2_index_nonzero,allele_diff_R2_nonzero)
+
+#list of alleles set
+allele_diff_R1_R2 <- c(allele_diff_R1_index_nonzero,allele_diff_R2_index_nonzero)
+allele_diff_R1_R2 <- unique(allele_diff_R1_R2) # set of alleles between 2 replicates
+allele_diff_R1_R2 <- allele_diff_R1_R2[order(allele_diff_R1_R2)] # ordered set
+
+#allele_diff_R1_R2 <- dat[allele_diff_R1_R2,]$Position # Position index
+# names(allele_diff_R1_R2) <- c(1:length(allele_diff_R1_R2))
+# cat(paste(names(allele_diff_R1_R2),allele_diff_R1_R2,sep="\t"),sep="\n",file="echovirus_Cl_1per_NE_alleleset.txt")
+
+#allele_diff_nonzero_matrix <- rbind(allele_diff_R2_nonzero_matrix,allele_diff_R2_nonzero_matrix)
+prob_allele_diff_R1_nonzero <- allele_diff_R1_nonzero/100
+prob_allele_diff_R2_nonzero <- allele_diff_R2_nonzero/100
+
+file_output="echovirus_Cl_1per_NE.txt"
+
+#### R1 data simulations
+count=0
+while(count < 25937){
+  final_virus <- numeric(length(prob_allele_diff_R1_nonzero))
+  for(w in 1:length(prob_allele_diff_R1_nonzero)){
+    res <- rbinom(1,1,prob_allele_diff_R1_nonzero[w])
+    if(res == 0) { 
+      final_virus[w] <- 0 
+    } else {
+      #final_virus[w] <- allele_diff_index_nonzero[w] # position index
+      final_virus[w] <- which(allele_diff_R1_R2 == allele_diff_R1_index_nonzero[w]) # index from ordered set
+    }
+  }
+  cat(final_virus,sep=",",file=file_output,append=TRUE)
+  cat(",",file=file_output,append=TRUE) 
+  cat(rep(0,length(allele_diff_R1_R2)),sep=",",file=file_output,append=TRUE) # separate each simulation by zeros
+  cat(",",file=file_output,append=TRUE) 
+  count=count+1
+}
+
+#### R2 data simulations
+
+count=0
+while(count < 21797){
+  final_virus <- numeric(length(prob_allele_diff_R2_nonzero))
+  for(w in 1:length(prob_allele_diff_R2_nonzero)){
+    res <- rbinom(1,1,prob_allele_diff_R2_nonzero[w])
+    if(res == 0) { 
+      final_virus[w] <- 0 
+    } else {
+      #final_virus[w] <- allele_diff_index_nonzero[w] # position index
+      final_virus[w] <- which(allele_diff_R1_R2 == allele_diff_R2_index_nonzero[w]) # index from ordered set
+    }
+  }
+  cat(final_virus,sep=",",file=file_output,append=TRUE)
+  cat(",",file=file_output,append=TRUE) 
+  cat(rep(0,length(allele_diff_R1_R2)),sep=",",file=file_output,append=TRUE) # separate each simulation by zeros
+  cat(",",file=file_output,append=TRUE) 
+  count=count+1
+}
+```
+
+## Step 4: place simulated data in TensorFlow folder (/evo_dnn)
+
+## Step 5: check process_data_echo.py for simulated data -> run word2vec_echo.py (what is VOCAB_SIZE? index start from 0 or 1?) or word2vec_visualize_echo.py (what are t-SNE, PCA?)
+
+## Step 6: visualize by tensorboard --logdir=./checkpoints -> http://192.168.0.22:6006 -> TensorBoard EMBEDDINGS
+
+## Step 7: understand visualizations by heatmap of similarity distributions (heatmap_pilot.xlsx) between important alleles (or all?) -> compare with Cytoscape biological network of amino acids?
+
+allele <- 7249
+dat[which(dat$Position==allele),]
+datB[which(datB$Position==allele),]
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
