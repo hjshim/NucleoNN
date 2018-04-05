@@ -1,7 +1,7 @@
 # NucleoNN
 
 I. README
-
+------------
 Title: Nucleotide Skip-gram Neural Network (NucleoNN) 
 Date: 2018-02-20
 
@@ -12,7 +12,7 @@ Install: This package requires TensorFlow (Version 1.2.1 or higher), Python (Ver
 
 
 II. AUTHORS
-
+------------
 Author: Hyunjin Shim
 Reference: Shim, H., Feature learning of virus genome evolution with the nucleotide skip-gram neural network (submitted)
 Maintainer: Hyunjin Shim <jinenstar@gmail.com>
